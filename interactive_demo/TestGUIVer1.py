@@ -10,9 +10,13 @@
 import torch
 import argparse
 
+import tkinter as tk
+from tkinter import messagebox, filedialog, ttk
+
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtGui import QImage, QResizeEvent
+from PyQt5.QtGui import QImage, QResizeEvent, QMouseEvent
 from PyQt5.QtWidgets import *
+from PyQt5.QtCore import Qt
 
 import cv2, imutils
 from PIL import Image
@@ -24,7 +28,7 @@ from isegm.inference import utils
 
 
 class Ui_Dialog(object):
-    def setupUi(self, Dialog):
+    def setupUi(self, Dialog, args, model):
         Dialog.setObjectName("Dialog")
         Dialog.resize(1114, 760)
         self.mainLbl = QtWidgets.QLabel(Dialog)
@@ -52,14 +56,37 @@ class Ui_Dialog(object):
         self.verticalLayout.addWidget(self.resetBtn)
 
         # Basic Setups
+        self._init_state()
         self.controller = InteractiveController(model, args.device,
                                                 predictor_params={'brs_mode': 'NoBRS'},
                                                 update_image_callback=self._update_image)
+
 
         # Functionalities
         self.loadImageBtn.clicked.connect(self.load_image)
         self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
+
+    def _init_state(self):
+        self.state = {
+            'zoomin_params': {
+                'use_zoom_in': True,
+                'fixed_crop': True,
+                'skip_clicks': -1,
+                'target_size': 400,
+                'expansion_ratio': 1.4
+            },
+
+            'predictor_params': {
+                'net_clicks_limit': 8
+            },
+            'brs_mode': 'NoBRS',
+            'prob_thresh': 0.5,
+            'lbfgs_max_iters': 20,
+
+            'alpha_blend': 0.5,
+            'click_radius': 3,
+        }
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
@@ -80,13 +107,23 @@ class Ui_Dialog(object):
         if image is not None:
             self.image_on_canvas.reload_image(Image.fromarray(image), reset_canvas)
 
+    def _click_callback(self, is_positive, x, y):
+        self.controller.add_click(x, y, is_positive)
+
     def resizeEvent(self, event: QResizeEvent):
         self.label.adjustSize()
 
     def get_pos(self, event):
-        x = event.pos().x()
-        y = event.pos().y()
-        print("Clicked at ({}, {})".format(x, y))
+        if event.button() == Qt.LeftButton:
+            x = event.x()
+            y = event.y()
+            print("Left click at ({}, {})".format(x, y))
+            self._click_callback(True, x, y)
+        elif event.button() == Qt.RightButton:
+            x = event.x()
+            y = event.y()
+            print("Right click at ({}, {})".format(x, y))
+            self._click_callback(False, x, y)
 
     def load_image(self):
         self.filename = QFileDialog.getOpenFileName(directory="C:/Users/LAPTOP/Desktop/Pics")[0]
@@ -145,6 +182,6 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     Dialog = QtWidgets.QDialog()
     ui = Ui_Dialog()
-    ui.setupUi(Dialog)
+    ui.setupUi(Dialog, args, model)
     Dialog.show()
     sys.exit(app.exec_())

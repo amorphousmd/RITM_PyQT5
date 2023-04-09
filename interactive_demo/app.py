@@ -312,6 +312,8 @@ class InteractiveDemoApp(ttk.Frame):
     def _update_image(self, reset_canvas=False):
         image = self.controller.get_visualization(alpha_blend=self.state['alpha_blend'].get(),
                                                   click_radius=self.state['click_radius'].get())
+        temp = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        cv2.imshow('d', temp)
         if self.image_on_canvas is None:
             self.image_on_canvas = CanvasImage(self.canvas_frame, self.canvas)
             self.image_on_canvas.register_click_callback(self._click_callback)
