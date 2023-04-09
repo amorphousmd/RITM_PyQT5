@@ -1,40 +1,61 @@
 import tkinter as tk
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout
-from PyQt5.QtGui import QWindow
-from PyQt5.QtCore import Qt
+from tkinter import ttk
+from PIL import Image, ImageTk
 
-class MyGUI(QWidget):
-    def __init__(self):
-        super().__init__()
+
+class InteractiveSegmentation(ttk.Frame):
+    def __init__(self, master=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.master = master
         self.initUI()
 
     def initUI(self):
-        # create a QVBoxLayout to hold the embedded tkinter window
-        layout = QVBoxLayout()
+        self.canvas_frame = ttk.Frame(self)
+        self.canvas_frame.grid(column=0, row=0, sticky="nsew")
+        self.canvas_frame.columnconfigure(0, weight=1)
+        self.canvas_frame.rowconfigure(0, weight=1)
 
-        # create the tkinter window and any necessary widgets
-        tk_window = tk.Tk()
-        label = tk.Label(tk_window, text="Hello, tkinter!")
-        label.pack()
+        self.canvas_container = ttk.Frame(self.canvas_frame)
+        self.canvas_container.grid(column=0, row=0, sticky="nsew")
+        self.canvas_container.columnconfigure(0, weight=1)
+        self.canvas_container.rowconfigure(0, weight=1)
 
-        # get the window ID of the tkinter window
-        tk_id = tk_window.winfo_id()
+        self.canvas = None
+        self.red_square = None
 
-        # create a QWindow and set its window ID to the tkinter ID
-        qt_window = QWindow.fromWinId(tk_id)
-        qt_window.setFlags(qt_window.flags() | Qt.WindowTransparentForInput | Qt.WindowOverridesSystemGestures)
+        self.create_canvas()
 
-        # create a QWidget to hold the QWindow object
-        embedded_widget = QWidget.createWindowContainer(qt_window)
+    def create_canvas(self):
+        # Create a separate Tk object for the canvas
+        self.canvas_tk = tk.Tk()
+        self.canvas_tk.withdraw()
 
-        # add the QWidget to the layout
-        layout.addWidget(embedded_widget)
+        # Create the canvas
+        self.canvas = TkinterCanvas(self.canvas_container, width=500, height=500, bg='white', highlightthickness=0)
+        self.canvas.grid(column=0, row=0, sticky="nsew")
+        self.canvas.bind("<Button-1>", self.on_click)
 
-        # set the layout for the PyQt widget and show the window
-        self.setLayout(layout)
-        self.show()
+    def on_click(self, event):
+        if self.red_square is None:
+            self.red_square = self.canvas.create_rectangle(50, 50, 300, 300, fill='red')
+        else:
+            self.canvas.delete(self.red_square)
+            self.red_square = None
+
+
+class TkinterCanvas(tk.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bind("<Configure>", self.resize)
+
+    def resize(self, event):
+        self.config(width=event.width, height=event.height)
+
 
 if __name__ == '__main__':
-    app = QApplication([])
-    gui = MyGUI()
-    app.exec_()
+    root = tk.Tk()
+    gui = InteractiveSegmentation(root)
+    gui.grid(column=0, row=0, sticky="nsew")
+    gui.columnconfigure(0, weight=1)
+    gui.rowconfigure(0, weight=1)
+    root.mainloop()
