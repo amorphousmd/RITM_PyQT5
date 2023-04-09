@@ -1,0 +1,11 @@
+.idea/*
+*__pycache__*
+weights
+experiments
+pretrained_models
+*.so
+*.ipynb_checkpoints*
+*.yml
+*.json
+
+*.pth
