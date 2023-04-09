@@ -1,61 +1,78 @@
-import tkinter as tk
-from tkinter import ttk
+import sys
+from PyQt5 import QtWidgets, QtGui
+from PyQt5.QtWidgets import QFileDialog
 from PIL import Image, ImageTk
 
+class PyQtCanvas(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setLayout(QtWidgets.QVBoxLayout())
+        self.canvas = QtWidgets.QLabel(self)
+        self.canvas.setFixedSize(500, 500)
+        self.canvas.setStyleSheet("background-color: white;")
+        self.layout().addWidget(self.canvas)
 
-class InteractiveSegmentation(ttk.Frame):
-    def __init__(self, master=None, **kwargs):
-        super().__init__(master, **kwargs)
-        self.master = master
-        self.initUI()
+        self.rect = None
+        self.start_x = None
+        self.start_y = None
+        self.end_x = None
+        self.end_y = None
+        self.active = False
 
-    def initUI(self):
-        self.canvas_frame = ttk.Frame(self)
-        self.canvas_frame.grid(column=0, row=0, sticky="nsew")
-        self.canvas_frame.columnconfigure(0, weight=1)
-        self.canvas_frame.rowconfigure(0, weight=1)
+        self.toggle_button = QtWidgets.QPushButton('Toggle', self)
+        self.toggle_button.clicked.connect(self.toggle)
+        self.layout().addWidget(self.toggle_button)
 
-        self.canvas_container = ttk.Frame(self.canvas_frame)
-        self.canvas_container.grid(column=0, row=0, sticky="nsew")
-        self.canvas_container.columnconfigure(0, weight=1)
-        self.canvas_container.rowconfigure(0, weight=1)
+        self.load_button = QtWidgets.QPushButton('Load Image', self)
+        self.load_button.clicked.connect(self.load_image)
+        self.layout().addWidget(self.load_button)
 
-        self.canvas = None
-        self.red_square = None
+    def toggle(self):
+        self.active = not self.active
 
-        self.create_canvas()
+    def mousePressEvent(self, event):
+        if self.active:
+            self.start_x = event.x()
+            self.start_y = event.y()
 
-    def create_canvas(self):
-        # Create a separate Tk object for the canvas
-        self.canvas_tk = tk.Tk()
-        self.canvas_tk.withdraw()
+    def mouseMoveEvent(self, event):
+        if self.active:
+            self.end_x = event.x()
+            self.end_y = event.y()
+            if self.rect:
+                self.rect.setParent(None)
+            self.rect = QtWidgets.QFrame(self.canvas)
+            self.rect.setFrameStyle(QtWidgets.QFrame.Box)
+            self.rect.setGeometry(self.start_x, self.start_y, self.end_x - self.start_x, self.end_y - self.start_y)
+            self.rect.setStyleSheet("border: 2px solid red;")
 
-        # Create the canvas
-        self.canvas = TkinterCanvas(self.canvas_container, width=500, height=500, bg='white', highlightthickness=0)
-        self.canvas.grid(column=0, row=0, sticky="nsew")
-        self.canvas.bind("<Button-1>", self.on_click)
+    def mouseReleaseEvent(self, event):
+        if self.active:
+            self.end_x = event.x()
+            self.end_y = event.y()
 
-    def on_click(self, event):
-        if self.red_square is None:
-            self.red_square = self.canvas.create_rectangle(50, 50, 300, 300, fill='red')
-        else:
-            self.canvas.delete(self.red_square)
-            self.red_square = None
+    def load_image(self):
+        file_path, _ = QFileDialog.getOpenFileName()
+        if file_path:
+            image = Image.open(file_path)
+            image = image.resize((500, 500))
+            self.image = image
+            self.canvas.setPixmap(QtGui.QPixmap.fromImage(
+                QtGui.QImage(image.tobytes(), image.size[0], image.size[1], QtGui.QImage.Format_RGB888)))
+            self.canvas.mousePressEvent = lambda event: self.canvas_mouse_press_event(event, self.image)
+            self.canvas.mouseMoveEvent = lambda event: self.canvas_mouse_move_event(event, self.image)
+            self.canvas.mouseReleaseEvent = lambda event: self.canvas_mouse_release_event(event, self.image)
 
-
-class TkinterCanvas(tk.Canvas):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.bind("<Configure>", self.resize)
-
-    def resize(self, event):
-        self.config(width=event.width, height=event.height)
-
+class InteractiveSegmentation(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Interactive Segmentation')
+        self.setLayout(QtWidgets.QVBoxLayout())
+        self.canvas = PyQtCanvas(self)
+        self.layout().addWidget(self.canvas)
 
 if __name__ == '__main__':
-    root = tk.Tk()
-    gui = InteractiveSegmentation(root)
-    gui.grid(column=0, row=0, sticky="nsew")
-    gui.columnconfigure(0, weight=1)
-    gui.rowconfigure(0, weight=1)
-    root.mainloop()
+    app = QtWidgets.QApplication(sys.argv)
+    gui = InteractiveSegmentation()
+    gui.show()
+    sys.exit(app.exec_())
