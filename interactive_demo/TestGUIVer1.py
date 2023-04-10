@@ -56,12 +56,13 @@ class Ui_Dialog(object):
         self.verticalLayout.addWidget(self.resetBtn)
 
         # Basic Setups
+        self.limit_longest_size = 800
         self._init_state()
         self.controller = InteractiveController(model, args.device,
                                                 predictor_params={'brs_mode': 'NoBRS'},
                                                 update_image_callback=self._update_image)
 
-
+        self._reset_predictor()
         # Functionalities
         self.loadImageBtn.clicked.connect(self.load_image)
         self.retranslateUi(Dialog)
@@ -87,6 +88,26 @@ class Ui_Dialog(object):
             'alpha_blend': 0.5,
             'click_radius': 3,
         }
+
+    def _reset_predictor(self, *args, **kwargs):
+        brs_mode = 'NoBRS'
+        prob_thresh = 0.5
+        net_clicks_limit = None
+
+        zoomin_params = None
+
+        predictor_params = {
+            'brs_mode': brs_mode,
+            'prob_thresh': prob_thresh,
+            'zoom_in_params': zoomin_params,
+            'predictor_params': {
+                'net_clicks_limit': net_clicks_limit,
+                'max_size': self.limit_longest_size
+            },
+            'brs_opt_func_params': {'min_iou_diff': 1e-3},
+            'lbfgs_params': {'maxfun': 20}
+        }
+        self.controller.reset_predictor(predictor_params)
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate

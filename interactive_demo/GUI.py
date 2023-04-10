@@ -1,5 +1,7 @@
 import argparse
+import multiprocessing as mp
 import tkinter as tk
+import time
 
 import torch
 
@@ -19,9 +21,43 @@ def main():
     root.minsize(960, 480)
     app = InteractiveDemoApp(root, args, model)
     root.deiconify()
-    # app.menubar.children['!focusbutton'].invoke()
 
-    app.mainloop()
+    # start a separate process for the PyQt GUI
+    parent_conn, child_conn = mp.Pipe()
+    p = mp.Process(target=start_pyqt_gui, args=(child_conn,))
+    p.start()
+
+    while True:
+        # check if there is any message from the PyQt GUI
+        if parent_conn.poll():
+            msg = parent_conn.recv()
+            if msg == 'button_clicked':
+                # invoke the button in the tkinter GUI
+                app.menubar.children['!focusbutton'].invoke()
+
+        # update the tkinter GUI
+        root.update()
+
+        # sleep for a short time to avoid high CPU usage
+        time.sleep(0.01)
+
+
+def start_pyqt_gui(conn):
+    # create a simple PyQt GUI with a button
+    import sys
+    from PyQt5.QtWidgets import QApplication, QWidget, QPushButton
+
+    app = QApplication(sys.argv)
+
+    window = QWidget()
+    window.setWindowTitle('PyQt GUI')
+
+    button = QPushButton('Click me', window)
+    button.clicked.connect(lambda: conn.send('button_clicked'))
+
+    window.show()
+
+    sys.exit(app.exec_())
 
 
 def parse_args():
