@@ -9,3 +9,9 @@ pretrained_models
 *.json
 
 *.pth
+
+*.png
+
+*.ps
+
+*.eps
