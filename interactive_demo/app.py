@@ -18,8 +18,8 @@ class InteractiveDemoApp(ttk.Frame):
         master.title("Reviving Iterative Training with Mask Guidance for Interactive Segmentation")
         master.withdraw()
         master.update_idletasks()
-        x = (master.winfo_screenwidth() - master.winfo_reqwidth()) / 2
-        y = (master.winfo_screenheight() - master.winfo_reqheight()) / 2
+        x = (master.winfo_screenwidth() - master.winfo_reqwidth()) + 400
+        y = (master.winfo_screenheight() - master.winfo_reqheight()) + 400
         master.geometry("+%d+%d" % (x, y))
         self.pack(fill="both", expand=True)
 

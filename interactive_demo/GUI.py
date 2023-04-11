@@ -1,13 +1,15 @@
 import argparse
 import multiprocessing as mp
-import tkinter as tk
 import time
 import cv2
 from PIL import Image, ImageDraw, ImageQt, ImageTk
 import numpy as np
 import io
+
+import tkinter as tk
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton
+from PyQt5.QtCore import Qt
 
 import torch
 from isegm.utils import exp
@@ -25,6 +27,7 @@ def main():
     root = tk.Tk()
     root.minsize(960, 480)
     app = InteractiveDemoApp(root, args, model)
+
     root.deiconify()
 
     # start a separate process for the PyQt GUI
@@ -36,10 +39,49 @@ def main():
         # check if there is any message from the PyQt GUI
         if parent_conn.poll():
             msg = parent_conn.recv()
-            if msg == 'button_clicked':
+            if msg[0] == 'load_button_clicked':
                 # invoke the button in the tkinter GUI
+                # root.withdraw()
                 app.menubar.children['!focusbutton'].invoke()
-                simulate_canvas_click(app, x=200, y=200)
+                img = get_canvas_image(app)
+                # extract the image from the canvas
+                parent_conn.send(img)
+                # send the image to PyQt GUI
+
+            if msg[0] == 'canvas_clicked':
+                if msg[3]:
+                    simulate_canvas_click(app, True, x=msg[1], y=msg[2])
+                else:
+                    simulate_canvas_click(app, False, x=msg[1], y=msg[2])
+                img = get_canvas_image(app)
+                # extract the image from the canvas
+                parent_conn.send(img)
+                # send the image to PyQt GUI
+
+            if msg[0] == 'save_button_clicked':
+                # invoke the button in the tkinter GUI
+                app.menubar.children['!focusbutton2'].invoke()
+
+            if msg[0] == 'undo_button_clicked':
+                # invoke the button in the tkinter GUI
+                button_name = ".!interactivedemoapp.!focuslabelframe3.!focuslabelframe.!focusbutton2"
+                app.clicks_options_frame.nametowidget(button_name).invoke()
+                img = get_canvas_image(app)
+                # extract the image from the canvas
+                parent_conn.send(img)
+                # send the image to PyQt GUI
+
+            if msg[0] == 'reset_button_clicked':
+                button_name = ".!interactivedemoapp.!focuslabelframe3.!focuslabelframe.!focusbutton3"
+                app.clicks_options_frame.nametowidget(button_name).invoke()
+                img = get_canvas_image(app)
+                # extract the image from the canvas
+                parent_conn.send(img)
+                # send the image to PyQt GUI
+
+            if msg[0] == 'done_button_clicked':
+                button_name = ".!interactivedemoapp.!focuslabelframe3.!focuslabelframe.!focusbutton"
+                app.clicks_options_frame.nametowidget(button_name).invoke()
                 img = get_canvas_image(app)
                 # extract the image from the canvas
                 parent_conn.send(img)
@@ -56,31 +98,151 @@ def start_pyqt_gui(conn):
     app = QApplication([])
     window = QMainWindow()
     window.setWindowTitle('PyQt GUI')
-    window.setGeometry(0, 0, 800, 600)
+    window.setGeometry(0, 0, 740, 580)
 
     label = QLabel(window)
     label.setGeometry(50, 50, 640, 480)
+    label.setStyleSheet("background-color: black;")
+    label.mousePressEvent = lambda event: handle_label_click(event, conn, label)
 
-    button = QPushButton('Click me', window)
-    button.clicked.connect(lambda: conn.send('button_clicked'))
-    button.move(10, 10)
+    load_button = QPushButton('Load', window)
+    load_button.clicked.connect(lambda: load_image(conn, label))
+    load_button.move(50, 10)
+
+    undo_button = QPushButton('Undo', window)
+    undo_button.clicked.connect(lambda: undo_click(conn, label))
+    undo_button.move(184, 10)
+
+    done_button = QPushButton('Done', window)
+    done_button.clicked.connect(lambda: finish_image(conn, label))
+    done_button.move(318, 10)
+
+    reset_button = QPushButton('Reset', window)
+    reset_button.clicked.connect(lambda: reset_clicks(conn, label))
+    reset_button.move(452, 10)
+
+    save_button = QPushButton('Save', window)
+    save_button.clicked.connect(lambda: conn.send(('save_button_clicked', 0)))
+    save_button.move(586, 10)
 
     window.show()
+    app.exec_()
 
+
+def load_image(conn, label):
+    conn.send(('load_button_clicked', 0))
     while True:
-        # check if there is any message from the main process
         if conn.poll():
             img = conn.recv()
-            data = Image.fromarray(img)
-            ## save the image file as png
-            data.save('image.png')
-            temp = cv2.imread('image.png')
-            temp = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
-            cv2.imwrite('image.png', temp)
-            pixmap = QPixmap('image.png')
-            label.setPixmap(pixmap)
+            break
+    data = Image.fromarray(img)
+    data.save('image.png')
+    temp = cv2.imread('image.png')
+    temp = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
+    cv2.imwrite('image.png', temp)
+    pixmap = QPixmap('image.png').scaled(640, 480)
+    label.setPixmap(pixmap)
 
-        app.processEvents()
+def undo_click(conn, label):
+    conn.send(('undo_button_clicked', 0))
+    while True:
+        if conn.poll():
+            img = conn.recv()
+            break
+    data = Image.fromarray(img)
+    data.save('image.png')
+    temp = cv2.imread('image.png')
+    temp = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
+    cv2.imwrite('image.png', temp)
+    pixmap = QPixmap('image.png').scaled(640, 480)
+    label.setPixmap(pixmap)
+
+def reset_clicks(conn, label):
+    conn.send(('reset_button_clicked', 0))
+    while True:
+        if conn.poll():
+            img = conn.recv()
+            break
+    data = Image.fromarray(img)
+    data.save('image.png')
+    temp = cv2.imread('image.png')
+    temp = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
+    cv2.imwrite('image.png', temp)
+    pixmap = QPixmap('image.png').scaled(640, 480)
+    label.setPixmap(pixmap)
+
+def finish_image(conn, label):
+    conn.send(('done_button_clicked', 0))
+    while True:
+        if conn.poll():
+            img = conn.recv()
+            break
+    data = Image.fromarray(img)
+    data.save('image.png')
+    temp = cv2.imread('image.png')
+    temp = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
+    cv2.imwrite('image.png', temp)
+    pixmap = QPixmap('image.png').scaled(640, 480)
+    label.setPixmap(pixmap)
+
+
+def handle_label_click(event, conn, label):
+    x = event.x()
+    y = event.y()
+    button = event.button()
+    if button ==  Qt.MouseButton.LeftButton:
+        print(f"Left click on label at position ({x}, {y})")
+        conn.send(('canvas_clicked', int(x / 1.1), int(y / 1.1), 1))
+    elif button ==  Qt.MouseButton.RightButton:
+        print(f"Right click on label at position ({x}, {y})")
+        conn.send(('canvas_clicked', int(x / 1.1), int(y / 1.1), 0))
+    while True:
+        if conn.poll():
+            img = conn.recv()
+            break
+    data = Image.fromarray(img)
+    data.save('image.png')
+    temp = cv2.imread('image.png')
+    temp = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
+    cv2.imwrite('image.png', temp)
+    pixmap = QPixmap('image.png').scaled(640, 480)
+    label.setPixmap(pixmap)
+
+
+def simulate_canvas_click(app, leftclick, x, y,):
+    event = tk.Event()
+    event.x = x
+    event.y = y
+    if leftclick:
+        app.canvas.event_generate("<ButtonPress-1>", x=x, y=y, time=0, state=1)
+        app.canvas.event_generate("<ButtonRelease-1>", x=x, y=y, time=0, state=0)
+    else:
+        app.canvas.event_generate("<ButtonPress-3>", x=x, y=y, time=0, state=1)
+        app.canvas.event_generate("<ButtonRelease-3>", x=x, y=y, time=0, state=0)
+
+
+def get_canvas_image(app):
+    # canvas_width = int(app.canvas.winfo_width() *1)
+    # canvas_height = int(app.canvas.winfo_height() * 1)
+    canvas_width = int(435 * 1.34)
+    canvas_height = int(325 * 1.34)
+    app.canvas.tk.call('tk', 'scaling', 1.0)
+
+    # Draw the contents of the canvas onto the image
+    app.canvas.postscript(file='canvas.eps')
+    with open('canvas.eps', 'rb') as f:
+        img_eps = io.BytesIO(f.read())
+    img = Image.open(img_eps)
+    img = img.crop((1, 1, canvas_width - 1, canvas_height - 1))
+
+    # Convert the image to a numpy array
+    img_array = np.array(img)
+
+    # Convert the color space from BGR to RGB
+    img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
+
+    # Send the image to the PyQt GUI
+    return img_array
 
 
 def parse_args():
@@ -107,49 +269,12 @@ def parse_args():
 
     args = parser.parse_args()
     if args.cpu:
-        args.device =torch.device('cpu')
+        args.device = torch.device('cpu')
     else:
         args.device = torch.device(f'cuda:{args.gpu}')
     cfg = exp.load_config_file(args.cfg, return_edict=True)
 
     return args, cfg
-
-def simulate_canvas_click(app, x, y):
-    event = tk.Event()
-    event.x = x
-    event.y = y
-    app.canvas.event_generate("<ButtonPress-1>", x=x, y=y, time=0, state=1)
-    app.canvas.event_generate("<ButtonRelease-1>", x=x, y=y, time=0, state=0)
-
-
-def get_canvas_image(app):
-    # Get the position of the canvas relative to the screen
-
-    # Get the size of the canvas
-    # canvas_width = int(app.canvas.winfo_width() *1)
-    # canvas_height = int(app.canvas.winfo_height() * 1)
-    canvas_width = 440
-    canvas_height = 330
-
-    # Create a blank image
-    img = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
-
-    # Draw the contents of the canvas onto the image
-    img_draw = ImageDraw.Draw(img)
-    app.canvas.postscript(file='canvas.eps')
-    with open('canvas.eps', 'rb') as f:
-        img_eps = io.BytesIO(f.read())
-    img = Image.open(img_eps)
-    img = img.crop((1, 1, canvas_width - 1, canvas_height - 1))
-
-    # Convert the image to a numpy array
-    img_array = np.array(img)
-
-    # Convert the color space from BGR to RGB
-    img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
-
-    # Send the image to the PyQt GUI
-    return img_array
 
 
 if __name__ == '__main__':
