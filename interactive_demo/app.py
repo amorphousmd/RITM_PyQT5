@@ -15,11 +15,11 @@ class InteractiveDemoApp(ttk.Frame):
     def __init__(self, master, args, model):
         super().__init__(master)
         self.master = master
-        master.title("Reviving Iterative Training with Mask Guidance for Interactive Segmentation")
+        master.title("")
         master.withdraw()
         master.update_idletasks()
-        x = (master.winfo_screenwidth() - master.winfo_reqwidth()) + 400
-        y = (master.winfo_screenheight() - master.winfo_reqheight()) + 400
+        x = (master.winfo_screenwidth() - master.winfo_reqwidth()) / 2 + 2000
+        y = (master.winfo_screenheight() - master.winfo_reqheight()) / 2 + 2000
         master.geometry("+%d+%d" % (x, y))
         self.pack(fill="both", expand=True)
 
@@ -319,6 +319,9 @@ class InteractiveDemoApp(ttk.Frame):
         self._set_click_dependent_widgets_state()
         if image is not None:
             self.image_on_canvas.reload_image(Image.fromarray(image), reset_canvas)
+
+    def update_image(self, reset_canvas):
+        self._update_image(reset_canvas=reset_canvas)
 
     def _set_click_dependent_widgets_state(self):
         after_1st_click_state = tk.NORMAL if self.controller.is_incomplete_mask else tk.DISABLED

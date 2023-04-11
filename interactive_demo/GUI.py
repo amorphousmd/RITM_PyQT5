@@ -7,9 +7,9 @@ import numpy as np
 import io
 
 import tkinter as tk
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QImage, QPixmap, QCursor
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRect
 
 import torch
 from isegm.utils import exp
@@ -87,6 +87,18 @@ def main():
                 parent_conn.send(img)
                 # send the image to PyQt GUI
 
+            if msg[0] == 'mouse_scrolled':
+                simulate_canvas_scroll(app, msg[1], msg[2], msg[3])
+                img = get_canvas_image(app)
+                # extract the image from the canvas
+                parent_conn.send(img)
+
+            if msg[0] == 'reset_canvas':
+                app.update_image(reset_canvas=True)
+                img = get_canvas_image(app)
+                # extract the image from the canvas
+                parent_conn.send(img)
+
         # update the tkinter GUI
         root.update()
 
@@ -97,13 +109,14 @@ def main():
 def start_pyqt_gui(conn):
     app = QApplication([])
     window = QMainWindow()
-    window.setWindowTitle('PyQt GUI')
+    window.setWindowTitle('Interactive Segmentation GUI [Beta]')
     window.setGeometry(0, 0, 740, 580)
 
     label = QLabel(window)
     label.setGeometry(50, 50, 640, 480)
     label.setStyleSheet("background-color: black;")
     label.mousePressEvent = lambda event: handle_label_click(event, conn, label)
+    label.wheelEvent = lambda event: handle_wheel_event(event, conn, label)
 
     load_button = QPushButton('Load', window)
     load_button.clicked.connect(lambda: load_image(conn, label))
@@ -111,19 +124,23 @@ def start_pyqt_gui(conn):
 
     undo_button = QPushButton('Undo', window)
     undo_button.clicked.connect(lambda: undo_click(conn, label))
-    undo_button.move(184, 10)
+    undo_button.move(160, 10)
 
     done_button = QPushButton('Done', window)
     done_button.clicked.connect(lambda: finish_image(conn, label))
-    done_button.move(318, 10)
+    done_button.move(270, 10)
 
     reset_button = QPushButton('Reset', window)
     reset_button.clicked.connect(lambda: reset_clicks(conn, label))
-    reset_button.move(452, 10)
+    reset_button.move(380, 10)
 
     save_button = QPushButton('Save', window)
     save_button.clicked.connect(lambda: conn.send(('save_button_clicked', 0)))
-    save_button.move(586, 10)
+    save_button.move(490, 10)
+
+    rcanvas_button = QPushButton('ResetCanvas', window)
+    rcanvas_button.clicked.connect(lambda: reset_canvas(conn, label))
+    rcanvas_button.move(600, 10)
 
     window.show()
     app.exec_()
@@ -131,6 +148,21 @@ def start_pyqt_gui(conn):
 
 def load_image(conn, label):
     conn.send(('load_button_clicked', 0))
+    while True:
+        if conn.poll():
+            img = conn.recv()
+            break
+    data = Image.fromarray(img)
+    data.save('image.png')
+    temp = cv2.imread('image.png')
+    temp = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
+    cv2.imwrite('image.png', temp)
+    pixmap = QPixmap('image.png').scaled(640, 480)
+    label.setPixmap(pixmap)
+
+
+def reset_canvas(conn, label):
+    conn.send(('reset_canvas', 0))
     while True:
         if conn.poll():
             img = conn.recv()
@@ -185,6 +217,23 @@ def finish_image(conn, label):
     pixmap = QPixmap('image.png').scaled(640, 480)
     label.setPixmap(pixmap)
 
+def handle_wheel_event(event, conn, label):
+    x = event.x()
+    y = event.y()
+    direction = event.angleDelta().y() // 120  # positive for up, negative for down
+    conn.send(('mouse_scrolled', int(x), int(y), direction))
+    while True:
+        if conn.poll():
+            img = conn.recv()
+            break
+    data = Image.fromarray(img)
+    data.save('image.png')
+    temp = cv2.imread('image.png')
+    temp = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
+    cv2.imwrite('image.png', temp)
+    pixmap = QPixmap('image.png').scaled(640, 480)
+    label.setPixmap(pixmap)
+
 
 def handle_label_click(event, conn, label):
     x = event.x()
@@ -219,6 +268,10 @@ def simulate_canvas_click(app, leftclick, x, y,):
     else:
         app.canvas.event_generate("<ButtonPress-3>", x=x, y=y, time=0, state=1)
         app.canvas.event_generate("<ButtonRelease-3>", x=x, y=y, time=0, state=0)
+
+def simulate_canvas_scroll(app, x, y, delta):
+    app.canvas.event_generate("<Motion>", x=x, y=y, time=0, state=0)
+    app.canvas.event_generate("<MouseWheel>", delta=-delta, x=x, y=y)
 
 
 def get_canvas_image(app):
